@@ -6,7 +6,6 @@ export function computeMetrics(data){
   const winrate = pnl.length ? (pnl.filter(v=>v>0).length / pnl.length) : null;
   const profitFactor = neg ? (pos / Math.abs(neg)) : (pos>0 ? Infinity : null);
 
-  // equity curve
   const eq = []; let acc = 0;
   for (const v of pnl){ acc += (v||0); eq.push(acc); }
   let peak = -Infinity, maxDD = 0;
@@ -18,12 +17,9 @@ export function computeMetrics(data){
 
   const xirr = computeXirr(data.cashflows);
 
-  return {
-    winrate, profitFactor, maxDrawdown, dividends, realizedEnd, xirr
-  };
+  return { winrate, profitFactor, maxDrawdown, dividends, realizedEnd, xirr };
 }
 
-// Newton-Raphson XIRR (annualisiert), cashflows: [{date, amount}]
 function computeXirr(cashflows){
   if (!cashflows || cashflows.length < 2) return null;
   const flows = cashflows.map(cf => ({ t: new Date(cf.date).getTime(), a: cf.amount }));
@@ -34,7 +30,7 @@ function computeXirr(cashflows){
   const f = r => flows.reduce((acc,cf)=> acc + cf.a / Math.pow(1+r, (cf.t - t0)/yearMs ), 0);
   const df = r => flows.reduce((acc,cf)=> acc + (-((cf.t - t0)/yearMs)) * cf.a / Math.pow(1+r, 1+ (cf.t - t0)/yearMs ), 0);
 
-  let r = 0.1; // initial 10%
+  let r = 0.1;
   for (let i=0;i<100;i++){
     const fr = f(r);
     const dfr = df(r);

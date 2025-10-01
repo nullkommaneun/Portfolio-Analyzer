@@ -1,6 +1,5 @@
 // app/analytics/aggregations.js
 export function aggregateAll(data){
-  // fees
   const fees = {
     overnight: data.account.overnight||0,
     commission: data.account.commission||0,
@@ -9,7 +8,6 @@ export function aggregateAll(data){
     fx_fees: data.account.fx_fees||0
   };
 
-  // type exposure (heuristic via symbol/isin keywords)
   const typeCounts = new Map();
   for (const t of data.trades){
     const typ = inferType(t);

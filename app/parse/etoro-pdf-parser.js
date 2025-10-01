@@ -25,7 +25,6 @@ export function parseEtoroPdf(pages, items, { geomEnabled=false, logs=()=>{} } =
   const text = pages.join('\n');
   const lines = text.split(/\n+/).map(s=>s.trim()).filter(Boolean);
 
-  // Konto-Felder
   const account = {};
   for (const fm of FIELD_MAP){
     const idx = lines.findIndex(l => fm.keys.some(k => k.test(l)));
@@ -36,14 +35,11 @@ export function parseEtoroPdf(pages, items, { geomEnabled=false, logs=()=>{} } =
     }
   }
 
-  // Trades: 5-Zeilen-Blöcke, ISIN vorher optional
   const trades = [];
   let pendingISIN = null;
   for (let i=0;i<lines.length;i++){
     const l = lines[i];
-
     if (RE_ISIN.test(l)) { pendingISIN = l; continue; }
-
     if (RE_POS_ID.test(l)){
       const posId = l;
       const name = lines[i-1] && !RE_ISIN.test(lines[i-1]) ? lines[i-1] : null;
@@ -65,7 +61,6 @@ export function parseEtoroPdf(pages, items, { geomEnabled=false, logs=()=>{} } =
     }
   }
 
-  // Cashflows: einfacher Scan im Transaktionen-Block
   const cashflows = [];
   const txStart = lines.findIndex(l => /(Transaktionen|Transactions)/i.test(l));
   if (txStart !== -1){

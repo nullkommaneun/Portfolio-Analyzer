@@ -12,7 +12,7 @@ export async function extractTextFromPdf(file){
     let acc = [];
     for (const item of content.items){
       const str = item.str.replace(/\s+/g,' ').trim();
-      const y = Math.round(item.transform[5]); // approx line grouping by Y
+      const y = Math.round(item.transform[5]);
       if (currentY === null) currentY = y;
       if (Math.abs(y - currentY) > 2){
         lines.push(acc.join(' ').trim());

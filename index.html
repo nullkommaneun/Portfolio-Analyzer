@@ -42,6 +42,18 @@
     <pre id="errorConsole" class="console" aria-live="polite"></pre>
   </section>
 
+<section class="card" id="debugPanel">
+  <h2>Diagnose</h2>
+  <div style="display:flex; gap:8px; flex-wrap:wrap">
+    <label><input type="checkbox" id="dbgEnabled"> Diagnose aktiv</label>
+    <button type="button" id="dbgShowSections">Abschnitte markieren</button>
+    <button type="button" id="dbgShowMatches">Kontext um Treffer</button>
+    <button type="button" id="dbgShowRaw">Rohtext anzeigen</button>
+    <button type="button" id="dbgDlRaw">Rohtext herunterladen</button>
+  </div>
+  <pre id="dbgOut" class="console" style="margin-top:10px; max-height:320px"></pre>
+</section>
+  
   <section id="kpis" class="grid"></section>
 
   <section class="grid">

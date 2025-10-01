@@ -5,11 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Portfolio Analyzer (Client-only)</title>
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- Chart.js (nur Anzeige) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-  <!-- pdf.js als ESM laden und NACH erfolgreichem Import erst main.js importieren -->
   <script type="module">
     (async () => {
       try {
@@ -17,8 +13,6 @@
         window.pdfjsLib = pdfjsLib;
         window.pdfjsLib.GlobalWorkerOptions.workerSrc =
           'https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs';
-
-        // WICHTIG: main.js erst importieren, wenn pdfjsLib gesetzt ist
         await import('./app/main.js');
       } catch (e) {
         console.error('pdf.js oder main.js konnte nicht geladen werden:', e);
@@ -29,56 +23,29 @@
   </script>
 </head>
 <body>
-  <header>
-    <h1>eToro PDF Analyzer</h1>
-    <p>Alle Daten werden ausschließlich im Browser verarbeitet. Nichts verlässt dein Gerät.</p>
-  </header>
-
+  <header><h1>eToro PDF Analyzer</h1></header>
   <section id="uploader" class="card dropzone">
     <input id="file" type="file" accept="application/pdf" />
     <button id="analyzeBtn" type="button">Analysieren</button>
-    <p>PDF wählen und auf <b>Analysieren</b> klicken (oder per Drag&Drop hier ablegen).</p>
     <div id="status"></div>
-    <pre id="errorConsole" class="console" aria-live="polite"></pre>
+    <pre id="errorConsole" class="console"></pre>
   </section>
-
-<section class="card" id="debugPanel">
-  <h2>Diagnose</h2>
-  <div style="display:flex; gap:8px; flex-wrap:wrap">
-    <label><input type="checkbox" id="dbgEnabled"> Diagnose aktiv</label>
-    <button type="button" id="dbgShowSections">Abschnitte markieren</button>
-    <button type="button" id="dbgShowMatches">Kontext um Treffer</button>
-    <button type="button" id="dbgShowRaw">Rohtext anzeigen</button>
-    <button type="button" id="dbgDlRaw">Rohtext herunterladen</button>
-  </div>
-  <pre id="dbgOut" class="console" style="margin-top:10px; max-height:320px"></pre>
-</section>
-  
   <section id="kpis" class="grid"></section>
-
   <section class="grid">
-    <div class="card">
-      <h2>Gebühren</h2>
-      <canvas id="feesChart"></canvas>
-    </div>
-    <div class="card">
-      <h2>Exposure (Sektor)</h2>
-      <canvas id="sectorChart"></canvas>
-    </div>
+    <div class="card"><h2>Gebühren</h2><canvas id="feesChart"></canvas></div>
+    <div class="card"><h2>Exposure</h2><canvas id="sectorChart"></canvas></div>
   </section>
-
-  <section class="card">
-    <h2>Geschlossene Positionen</h2>
-    <div id="tradesTable" class="table"></div>
+  <section class="card"><h2>Geschlossene Positionen</h2><div id="tradesTable"></div></section>
+  <section class="card actions"><button id="exportJson">Export JSON</button><button id="exportCsv">Export CSV</button></section>
+  <section class="card" id="debugPanel">
+    <h2>Diagnose</h2>
+    <label><input type="checkbox" id="dbgEnabled"> Diagnose aktiv</label>
+    <label><input type="checkbox" id="dbgTreatAmountAsPnl"> „Betrag“ als PnL interpretieren</label>
+    <button id="dbgShowSections">Abschnitte markieren</button>
+    <button id="dbgShowMatches">Kontext um Treffer</button>
+    <button id="dbgShowRaw">Rohtext anzeigen</button>
+    <button id="dbgDlRaw">Rohtext herunterladen</button>
+    <pre id="dbgOut" class="console"></pre>
   </section>
-
-  <section class="card actions">
-    <button id="exportJson" type="button">Export JSON</button>
-    <button id="exportCsv" type="button">Export CSV</button>
-  </section>
-
-  <footer>
-    <small>&copy; 2025 – Client-only Analyzer auf GitHub Pages</small>
-  </footer>
 </body>
 </html>

@@ -1,0 +1,1 @@
+export async function aggregate(data){let sectorMap={};try{const res=await fetch('assets/instrument-map.json');if(res.ok) sectorMap=await res.json();}catch{}const sector={};for(const t of data.trades){const key=(sectorMap[t.symbol]?.sector)||'Unbekannt';sector[key]=(sector[key]||0)+Math.abs(t.pnl||0);}return {sector};}

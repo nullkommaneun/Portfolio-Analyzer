@@ -1,0 +1,1 @@
+export function maxDrawdown(series){let peak=-Infinity,maxDD=0;for(const v of series){if(v>peak)peak=v;const dd=peak>0?(peak-v)/peak:0;if(dd>maxDD)maxDD=dd;}return maxDD;}

@@ -10,6 +10,18 @@ const fileInput = document.getElementById('file');
 const statusEl = document.getElementById('status');
 
 // drag & drop
+const fileInput = document.getElementById('file');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const statusEl = document.getElementById('status');
+
+analyzeBtn.addEventListener('click', () => {
+  const file = fileInput.files?.[0];
+  if (!file) {
+    statusEl.textContent = 'Bitte zuerst eine PDF auswählen.';
+    return;
+  }
+  run(file);
+});
 const drop = document.getElementById('uploader');
 drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
 drop.addEventListener('dragleave', e => { drop.classList.remove('drag'); });

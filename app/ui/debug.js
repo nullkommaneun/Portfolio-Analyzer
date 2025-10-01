@@ -5,7 +5,7 @@ export function setupDebug({ getState, perfMark, log }){
   const S = ()=>getState();
   const q = id => document.getElementById(id);
 
-  q('btnMarkSections').addEventListener('click', ()=>{
+  q('btnMarkSections')?.addEventListener('click', ()=>{
     const pages = S().pages || [];
     const text = pages.join('\n');
     const idxClosed = text.indexOf('Geschlossene Positionen');
@@ -18,7 +18,7 @@ export function setupDebug({ getState, perfMark, log }){
     ].join('\n\n');
   });
 
-  q('btnShowContext').addEventListener('click', ()=>{
+  q('btnShowContext')?.addEventListener('click', ()=>{
     const lines = (S().pages||[]).join('\n').split(/\n+/);
     const pats = [/\b\d{9,12}\b/, /\b[A-Z]{2}[A-Z0-9]{9}\d\b/, /\b(Long|Short)\b/i, /Gewinn \(USD\)|Betrag|Einheiten/];
     const hits = [];
@@ -35,16 +35,16 @@ export function setupDebug({ getState, perfMark, log }){
     q('dbgContext').textContent = hits.slice(0,50).join('\n\n---\n\n');
   });
 
-  q('btnShowRaw').addEventListener('click', ()=>{
+  q('btnShowRaw')?.addEventListener('click', ()=>{
     q('dbgOut').textContent = (S().pages||[]).join('\n\n=== PAGE ===\n\n');
   });
 
-  q('btnShowItems').addEventListener('click', ()=>{
+  q('btnShowItems')?.addEventListener('click', ()=>{
     const items = S().items||[];
     q('dbgOut').textContent = JSON.stringify(items.slice(0,500), null, 2);
   });
 
-  q('btnDownloadRaw').addEventListener('click', ()=>{
+  q('btnDownloadRaw')?.addEventListener('click', ()=>{
     const blob = new Blob([ (S().pages||[]).join('\n') ], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -53,27 +53,23 @@ export function setupDebug({ getState, perfMark, log }){
     setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
   });
 
-  q('btnCopyLog').addEventListener('click', async ()=>{
+  q('btnCopyLog')?.addEventListener('click', async ()=>{
     const ndjson = (S().logs||[]).map(o=>JSON.stringify(o)).join('\n');
-    await navigator.clipboard.writeText(ndjson);
-    alert('Log kopiert.');
+    try { await navigator.clipboard.writeText(ndjson); alert('Log kopiert.'); }
+    catch(e){ alert('Clipboard verweigert.'); }
   });
 
-  q('btnSelfCheck').addEventListener('click', ()=>{
+  q('btnSelfCheck')?.addEventListener('click', ()=>{
     const pass = (name, hint='') => ({ name, status: 'PASS', hint });
     const warn = (name, hint='') => ({ name, status: 'WARN', hint });
     const fail = (name, hint='') => ({ name, status: 'FAIL', hint });
 
     const checks = [];
-    try{
-      assert(!!window.pdfjsLib, 'pdfjsLib nicht geladen');
-      checks.push(pass('pdf.js geladen'));
-    } catch(e){ checks.push(fail('pdf.js geladen', e.message)); }
+    try{ assert(!!window.pdfjsLib, 'pdfjsLib nicht geladen'); checks.push(pass('pdf.js geladen')); }
+    catch(e){ checks.push(fail('pdf.js geladen', e.message)); }
 
-    try{
-      assert(!!window.pdfjsLib?.GlobalWorkerOptions?.workerSrc, 'Worker nicht gesetzt');
-      checks.push(pass('pdf.js Worker gesetzt'));
-    } catch(e){ checks.push(fail('pdf.js Worker gesetzt', e.message)); }
+    try{ assert(!!window.pdfjsLib?.GlobalWorkerOptions?.workerSrc, 'Worker nicht gesetzt'); checks.push(pass('pdf.js Worker gesetzt')); }
+    catch(e){ checks.push(fail('pdf.js Worker gesetzt', e.message)); }
 
     for (const id of ['file','analyzeBtn','tradesTable','feesChart','sectorChart']){
       try{ assert(document.getElementById(id), `DOM-ID fehlt: ${id}`); checks.push(pass(`DOM: ${id}`)); }
@@ -91,9 +87,7 @@ export function setupDebug({ getState, perfMark, log }){
       } else {
         checks.push(warn('Parser Basis', 'Noch keine Trades geladen'));
       }
-    } catch(e){
-      checks.push(fail('Parser Checks', e.message));
-    }
+    } catch(e){ checks.push(fail('Parser Checks', e.message)); }
 
     try{
       const a = S().data?.account || {};
@@ -104,20 +98,16 @@ export function setupDebug({ getState, perfMark, log }){
       } else {
         checks.push(warn('Cashflows', 'Keine Summen erkennbar'));
       }
-    } catch(e){
-      checks.push(fail('Cashflow Check', e.message));
-    }
-
-    const modules = [
-      {name:'Chart.js', present: !!window.Chart },
-      {name:'ES Modules', present: true },
-    ];
+    } catch(e){ checks.push(fail('Cashflow Check', e.message)); }
 
     renderSelfCheck(checks);
-    renderModuleStatus(modules);
+    renderModuleStatus([
+      {name:'Chart.js (geladen)', present: !!window.Chart },
+      {name:'ES Modules', present: true }
+    ]);
   });
 
-  q('btnMeasure').addEventListener('click', ()=>{
+  q('btnMeasure')?.addEventListener('click', ()=>{
     const p = (getState().perf)||{};
     const keys = Object.keys(p).sort((a,b)=>p[a]-p[b]);
     const lines = [];

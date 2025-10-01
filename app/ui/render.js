@@ -1,5 +1,30 @@
 // app/ui/render.js
-import { Chart } from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.esm.js';
+let ChartModule = null;
+
+export function setChartHint(msg){
+  const n = document.getElementById('chartHint');
+  if (n) n.textContent = msg || '';
+}
+
+async function ensureChart(){
+  if (ChartModule) return ChartModule;
+  const urls = [
+    'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.esm.js',
+    'https://unpkg.com/chart.js@4.4.3/dist/chart.esm.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.esm.min.js'
+  ];
+  let lastErr = null;
+  for (const u of urls){
+    try {
+      ChartModule = await import(u);
+      return ChartModule;
+    } catch(e){
+      lastErr = e;
+      console.warn('Chart.js Import fehlgeschlagen:', u, e);
+    }
+  }
+  throw lastErr || new Error('Chart.js Import fehlgeschlagen');
+}
 
 export function renderKpis(m, account){
   set('#kpiWinrate .kpi-value', fmtPct(m.winrate));
@@ -54,6 +79,7 @@ export function renderTrades(trades, { pageSize=200 }={}){
 
 let feesChart, sectorChart;
 export async function renderCharts(aggs, account){
+  const { Chart } = await ensureChart();
   const fc = document.getElementById('feesChart').getContext('2d');
   const sc = document.getElementById('sectorChart').getContext('2d');
   if (feesChart) feesChart.destroy();

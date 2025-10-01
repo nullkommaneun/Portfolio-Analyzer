@@ -2,11 +2,11 @@
 export function setupExports(getData, getMetrics, getAggs){
   const btnJson = document.getElementById('exportJson');
   const btnCsv = document.getElementById('exportCsv');
-  btnJson.addEventListener('click', ()=>{
+  btnJson?.addEventListener('click', ()=>{
     const payload = { data: getData(), metrics: getMetrics(), aggregations: getAggs() };
     downloadText('etoro-analyzer.json', JSON.stringify(payload, null, 2));
   });
-  btnCsv.addEventListener('click', ()=>{
+  btnCsv?.addEventListener('click', ()=>{
     const d = getData();
     const rows = [['position_id','name','symbol','side','amount','units','isin','pnl']];
     for (const t of d.trades){
@@ -19,7 +19,6 @@ export function setupExports(getData, getMetrics, getAggs){
     downloadText('etoro-trades.csv', csv);
   });
 }
-
 function downloadText(name, text){
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const a = document.createElement('a');

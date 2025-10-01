@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>eToro PDF Analyzer (Client-only)</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- CDN: pdf.js and chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script type="module" src="app/main.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>eToro PDF Analyzer</h1>
+    <p>Alle Daten werden ausschließlich im Browser verarbeitet. Nichts verlässt dein Gerät.</p>
+  </header>
+
+  <section id="uploader" class="card dropzone">
+    <input id="file" type="file" accept="application/pdf" />
+    <p>PDF hier ablegen oder Datei wählen.</p>
+    <div id="status"></div>
+  </section>
+
+  <section id="kpis" class="grid"></section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>Gebühren</h2>
+      <canvas id="feesChart"></canvas>
+    </div>
+    <div class="card">
+      <h2>Exposure (Sektor)</h2>
+      <canvas id="sectorChart"></canvas>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Geschlossene Positionen</h2>
+    <div id="tradesTable" class="table"></div>
+  </section>
+
+  <section class="card actions">
+    <button id="exportJson">Export JSON</button>
+    <button id="exportCsv">Export CSV</button>
+  </section>
+
+  <footer>
+    <small>&copy; 2025 – Client-only Analyzer auf GitHub Pages</small>
+  </footer>
+</body>
+</html>

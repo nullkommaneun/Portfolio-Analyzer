@@ -112,13 +112,21 @@
 </footer>
 
 <script type="module">
-  // 1) pdfjs-dist ESM laden und global bereitstellen
-  import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.mjs";
-  // Worker setzen (mjs Worker)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.mjs";
-  window.pdfjsLib = pdfjsLib;
-  // 2) App starten
-  import "./app/main.js";
+  async function boot() {
+    try {
+      const pdfjsLib = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.mjs");
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.mjs";
+      window.pdfjsLib = pdfjsLib;
+      console.log("pdf.js geladen");
+    } catch (e) {
+      console.warn("pdf.js konnte nicht geladen werden.", e);
+      window.pdfjsLib = null;
+    } finally {
+      await import("./app/main.js");
+    }
+  }
+  boot();
 </script>
 </body>
 </html>

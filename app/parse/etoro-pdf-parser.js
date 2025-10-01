@@ -2,15 +2,15 @@ import { parseNumber } from '../util/currency.js';
 import { parseDate } from '../util/date.js';
 
 export function parseEtoroPdf(pages) {
-  const text = pages.join('\n');
+  const text  = pages.join('\n');
   const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
 
   // ---------- Kontoübersicht (Summen) ----------
   const acct = {};
   function grab(label) {
-    const s = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const s  = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const rx = new RegExp(s + '\\s*\\(?-?([\\d.,]+)\\)?');
-    const m = text.match(rx);
+    const m  = text.match(rx);
     if (!m) return null;
     const raw = m[1];
     const neg = new RegExp(s + '\\s*\\(([\\d.,]+)\\)').test(text);
@@ -31,167 +31,128 @@ export function parseEtoroPdf(pages) {
   acct.fx_fees          = grab('Umrechnungsgebühr für Ein-/Auszahlungen');
   acct.realized_end     = grab('Realisiertes Eigenkapital - Ende');
 
-  // ---------- Abschnittsgrenzen ----------
-  const closedStart = findIndex(lines, /(Geschlossene Positionen|Closed Positions)/i);
-  const closedEnd   = (closedStart === -1) ? -1 : findEnd(lines, closedStart, /(Dividendenübersicht|Dividends Overview|Transaktionen|Transactions|Kontoübersicht|Account Statement|Offene Positionen|Open Positions)/i);
-
-  // Wenn kein Closed-Block: sofort zurück (wir zeigen wenigstens Summen/Dividenden an)
-  if (closedStart === -1) {
-    return { account: acct, trades: [], cashflows: [] };
-  }
-
-  const closedBlock = lines.slice(closedStart, closedEnd === -1 ? lines.length : closedEnd);
-
-  // ---------- Tabellenkopf für die Zeilen finden ----------
-  // Wir suchen einen kleinen Fensterbereich, der die Spaltenüberschriften enthält.
-  const headIdx = findHeaderIndex(closedBlock);
+  // ---------- Globale Trade-Erkennung (5-Zeilen-Muster) ----------
+  // Muster laut Diagnose:
+  //  i:   "Name (SYMBOL)"
+  //  i+1: Positions-ID  (nur Ziffern, 9–12 Stellen)
+  //  i+2: "Long" oder "Short"
+  //  i+3: Betrag (Zahl)
+  //  i+4: Einheiten (Zahl)
+  //
+  // Zusätzlich: Eine ISIN (12-stellig) steht häufig kurz vor dem Namen als eigene Zeile.
   const trades = [];
-
-  // Falls kein Kopf gefunden: keine Trades (wir geben Summen zurück)
-  if (headIdx === -1) {
-    return { account: acct, trades, cashflows: parseCashflows(lines) };
-  }
-
-  // ---------- ISIN-„Puffer“ (ISIN steht oft vor einer Zeile separat) ----------
-  // Wir merken uns die letzte gesehene ISIN; sie wird der nächsten Datenzeile zugeordnet.
   let pendingISIN = null;
 
-  // ---------- Zeilenblöcke parsen ----------
-  // Ab Kopfzeile + 1 beginnen die Zeilen. Jede Zeile hat das Muster:
-  // Name(Symbol), Positions-ID, Long/Short, Betrag, Einheiten
-  for (let i = headIdx + 1; i < closedBlock.length; ) {
-    const nameLine = closedBlock[i];
-    // Leere/Trenner überspringen
-    if (!nameLine || isSeparator(nameLine)) { i++; continue; }
+  const isISIN = (s) => /^[A-Z0-9]{12}$/.test(s);
+  const isDigitsId = (s) => /^\d{9,12}$/.test(s);
+  const isSide = (s) => /\bLong\b|\bShort\b/i.test(s);
+  const parseSide = (s) => /\bShort\b/i.test(s) ? 'Short' : (/\bLong\b/i.test(s) ? 'Long' : null);
+  const isNumberLike = (s) => /[-()0-9.,]+/.test(s) && Number.isFinite(parseNumber(s.replace(/[^\d,.\-()]/g,'')));
 
-    // Ein nackter 12-stelliger Code an dieser Stelle? -> wahrscheinlich ISIN-Puffer
-    if (isISIN(nameLine)) {
-      pendingISIN = nameLine;
-      i++;
-      continue;
-    }
+  const parseNameSymbol = (line) => {
+    const m = line.match(/^(.*?)\s*\(([A-Z0-9.\-:/]+)\)$/);
+    if (m) return { name: m[1].trim(), symbol: m[2].trim() };
+    // Fallback: nur Name zulassen (zur Not)
+    if (/^[A-Za-z].{3,}$/.test(line)) return { name: line.trim(), symbol: null };
+    return null;
+  };
 
-    // Erwartet: "Name (SYMBOL)"
-    const nameSym = parseNameSymbol(nameLine);
-    const idLine  = closedBlock[i+1];
-    const sideLine= closedBlock[i+2];
-    const amtLine = closedBlock[i+3];
-    const unitsLn = closedBlock[i+4];
+  // Header-Fenster: später ignorieren wir Zeilenfenster, die nur Überschriften enthalten
+  // (z. B. "Aktion / Positions-ID / Long / Short / Betrag / Einheiten")
+  const headerWindowMatches = (win) => {
+    const txt = win.join(' ').toLowerCase();
+    return /aktion/.test(txt) &&
+           /(positions-id|position id)/.test(txt) &&
+           /(long\s*\/\s*short|long\s+short)/.test(txt) &&
+           /betrag/.test(txt) &&
+           /einheiten/.test(txt);
+  };
 
-    // Wenn eins davon fehlt, abbrechen.
-    if ([idLine, sideLine, amtLine, unitsLn].some(v => v == null)) break;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
 
-    // Positions-ID ist reine Ziffernfolge (9–12)
-    if (!/^\d{9,12}$/.test(idLine)) {
-      // Kein regulärer Zeilensatz – ggf. verschobene Struktur: eins weiter
-      i++;
-      continue;
-    }
+    // ISIN-Puffer merken (wird der nächsten Datenzeile zugeordnet)
+    if (isISIN(line)) { pendingISIN = line; continue; }
 
-    // Long/Short
-    const side = /\bShort\b/i.test(sideLine) ? 'Short' : (/\bLong\b/i.test(sideLine) ? 'Long' : null);
+    // Kandidat: Name (SYMBOL)
+    const ns = parseNameSymbol(line);
+    if (!ns) continue;
 
-    // Betrag & Einheiten (Zahlen)
-    const amount = safeNum(amtLine);
-    const units  = safeNum(unitsLn);
+    // Schutz: Kein Fenster verarbeiten, das nur die Kopfzeilen widerspiegelt
+    const probe = lines.slice(i, i + 8);
+    if (headerWindowMatches(probe)) continue;
+
+    // Prüfe, ob danach 4 Zeilen das Muster erfüllen
+    const idLine   = lines[i + 1];
+    const sideLine = lines[i + 2];
+    const amtLine  = lines[i + 3];
+    const uniLine  = lines[i + 4];
+
+    if ([idLine, sideLine, amtLine, uniLine].some(v => v == null)) continue;
+    if (!isDigitsId(idLine)) continue;
+    if (!isSide(sideLine)) continue;
+    if (!isNumberLike(amtLine) || !isNumberLike(uniLine)) continue;
 
     const t = {
-      position_id: idLine,
-      name: nameSym?.name || null,
-      symbol: nameSym?.symbol || null,
-      side,
-      units: isFinite(units) ? units : null,
-      amount: isFinite(amount) ? amount : null,
-      isin: pendingISIN || null,
-      // PnL ist in diesem Layout nicht direkt als "Gewinn" je Zeile vorhanden (Header gesehen, Werte fragmentiert);
-      // wir lassen pnl vorerst leer. Optional: später heuristisch über Spalten "Gewinn (USD)" rekonstruiert.
+      position_id: idLine.trim(),
+      name: ns.name,
+      symbol: ns.symbol,
+      side: parseSide(sideLine),
+      amount: numberNegAware(amtLine),
+      units: numberNegAware(uniLine),
+      isin: pendingISIN || null
     };
     trades.push(t);
 
-    // ISIN-Verbrauch
+    // ISIN verbraucht + Fenster konsumieren
     pendingISIN = null;
-    // 5er Block konsumieren
-    i += 5;
+    i += 4;
   }
 
-  return { account: acct, trades, cashflows: parseCashflows(lines) };
+  // ---------- Cashflows (Transaktionen) für XIRR (grob) ----------
+  const cashflows = parseCashflows(lines);
+
+  return { account: acct, trades, cashflows };
 }
 
 /* --------------------- Hilfsfunktionen ---------------------- */
 
-function findIndex(arr, rx) {
-  for (let i=0;i<arr.length;i++) if (rx.test(arr[i])) return i;
-  return -1;
-}
-function findEnd(arr, start, endRx) {
-  for (let i = start + 1; i < arr.length; i++) if (endRx.test(arr[i])) return i;
-  return -1;
-}
-function isSeparator(s) {
-  return /^[-—–\s]*$/.test(s) || /^Gesamtsumme|^Summe$/i.test(s);
-}
-function isISIN(s) {
-  return /^[A-Z0-9]{12}$/.test(s);
-}
-function safeNum(s) {
+function numberNegAware(s) {
   const v = parseNumber(String(s).replace(/[^\d,.\-()]/g,'').trim());
-  if (Number.isFinite(v)) return /^\(.*\)$/.test(String(s)) ? -Math.abs(v) : v;
-  return NaN;
-}
-function parseNameSymbol(line) {
-  // "Elis SA (ELIS.PA)" -> {name, symbol}
-  const m = line.match(/^(.*?)\s*\(([A-Z0-9.\-:/]+)\)$/);
-  if (m) return { name: m[1].trim(), symbol: m[2].trim() };
-  // Fallback: nur Name
-  if (/^[A-Za-z].{3,}$/.test(line)) return { name: line.trim(), symbol: null };
-  return null;
-}
-
-function findHeaderIndex(block) {
-  // Wir suchen ein kleines Cluster, das so aussieht:
-  //  ... "Aktion" / "Positions-ID" / "Long / Short" / "Betrag" / "Einheiten"
-  // durch Fragmentierung können diese Begriffe auf benachbarten Zeilen liegen.
-  for (let i = 0; i < block.length; i++) {
-    const win = block.slice(i, i + 8).join(' ').toLowerCase();
-    if (
-      /aktion/.test(win) &&
-      /positions-id|position id/.test(win) &&
-      /long\s*\/\s*short|long\s+short/.test(win) &&
-      /betrag/.test(win) &&
-      /einheiten/.test(win)
-    ) {
-      // Kopfzeile ist nahe bei i (der genau Zeilenindex ist die Zeile mit "Positions-ID")
-      // Suche eine einzelne Zeile in [i, i+8], die "Positions-ID" enthält:
-      for (let j=i; j<i+8 && j<block.length; j++) {
-        if (/positions-id|position id/i.test(block[j])) return j;
-      }
-      return i;
-    }
-  }
-  // Alternativ: Wenn wir unmittelbar nach "Gewinn (USD)" Kopf haben, nutze den
-  for (let i = 0; i < block.length; i++) {
-    const win = block.slice(i, i + 6).join(' ').toLowerCase();
-    if (/gewinn/.test(win) && /devisenkurs|eröffnung|usd|eur/.test(win)) return i;
-  }
-  return -1;
+  return /^\(.*\)$/.test(String(s).trim()) ? -Math.abs(v) : v;
 }
 
 function parseCashflows(lines) {
-  // Transaktionen / Transactions -> grobe Ein-/Auszahlungen als Cashflows (für XIRR)
-  const txStart = findIndex(lines, /(Transaktionen|Transactions)/i);
+  const findIndex = (rx) => {
+    for (let i=0;i<lines.length;i++) if (rx.test(lines[i])) return i;
+    return -1;
+  };
+  const findEnd = (start, rx) => {
+    for (let i=start+1;i<lines.length;i++) if (rx.test(lines[i])) return i;
+    return -1;
+  };
+
+  const txStart = findIndex(/(Transaktionen|Transactions)/i);
   if (txStart === -1) return [];
-  const txEnd = findEnd(lines, txStart, /(Dividendenübersicht|Dividends Overview|Closed Positions|Geschlossene Positionen|Kontoübersicht|Account Statement)/i);
+  const txEnd = findEnd(txStart, /(Dividendenübersicht|Dividends Overview|Closed Positions|Geschlossene Positionen|Kontoübersicht|Account Statement)/i);
   const seg = lines.slice(txStart, txEnd === -1 ? lines.length : txEnd);
 
   const flows = [];
   for (const z of seg) {
     const dm = z.match(/(\d{2}-\d{2}-\d{4}).*?([(-]?[0-9.,)+-]+)/);
     if (!dm) continue;
-    const d = parseDate(dm[1]);
+    const dIso = toIso(dm[1]);
     let amt = parseNumber(dm[2]);
     if (/Auszahlung|Withdrawal/i.test(z)) amt = -Math.abs(amt);
     if (/Einzahlung|Deposit/i.test(z))   amt = +Math.abs(amt);
-    if (d && Number.isFinite(amt)) flows.push({ date: d.toISOString(), amount: amt, currency: 'USD' });
+    if (dIso && Number.isFinite(amt)) flows.push({ date: dIso, amount: amt, currency: 'USD' });
   }
   return flows;
+}
+
+function toIso(dmy) {
+  const m = String(dmy).match(/(\d{2})-(\d{2})-(\d{4})/);
+  if (!m) return null;
+  const [_, d, mo, y] = m;
+  return `${y}-${mo}-${d}T00:00:00.000Z`;
 }

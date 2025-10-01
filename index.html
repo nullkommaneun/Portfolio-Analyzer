@@ -5,14 +5,28 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Portfolio Analyzer (Client-only)</title>
   <link rel="stylesheet" href="styles.css" />
-  <!-- ESM-Import stellt window.pdfjsLib bereit -->
+
+  <!-- Chart.js (nur Anzeige) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- pdf.js als ESM laden und NACH erfolgreichem Import erst main.js importieren -->
   <script type="module">
-    import * as pdfjsLib from 'https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.mjs';
-    window.pdfjsLib = pdfjsLib;
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs';
+    (async () => {
+      try {
+        const pdfjsLib = await import('https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.mjs');
+        window.pdfjsLib = pdfjsLib;
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs';
+
+        // WICHTIG: main.js erst importieren, wenn pdfjsLib gesetzt ist
+        await import('./app/main.js');
+      } catch (e) {
+        console.error('pdf.js oder main.js konnte nicht geladen werden:', e);
+        const ec = document.getElementById('errorConsole');
+        if (ec) ec.textContent = 'Ladefehler: ' + (e?.message || e);
+      }
+    })();
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
-  <script type="module" src="app/main.js" defer></script>
 </head>
 <body>
   <header>
@@ -22,8 +36,8 @@
 
   <section id="uploader" class="card dropzone">
     <input id="file" type="file" accept="application/pdf" />
-    <button id="analyzeBtn">Analysieren</button>
-    <p>PDF hier ablegen oder Datei wählen und auf <b>Analysieren</b> klicken.</p>
+    <button id="analyzeBtn" type="button">Analysieren</button>
+    <p>PDF wählen und auf <b>Analysieren</b> klicken (oder per Drag&Drop hier ablegen).</p>
     <div id="status"></div>
     <pre id="errorConsole" class="console" aria-live="polite"></pre>
   </section>
@@ -47,8 +61,8 @@
   </section>
 
   <section class="card actions">
-    <button id="exportJson">Export JSON</button>
-    <button id="exportCsv">Export CSV</button>
+    <button id="exportJson" type="button">Export JSON</button>
+    <button id="exportCsv" type="button">Export CSV</button>
   </section>
 
   <footer>

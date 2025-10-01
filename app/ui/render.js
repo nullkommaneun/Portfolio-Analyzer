@@ -1,5 +1,4 @@
 // app/ui/render.js
-// Chart.js ESM
 import { Chart } from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.esm.js';
 
 export function renderKpis(m, account){
@@ -37,7 +36,6 @@ export function renderTrades(trades, { pageSize=200 }={}){
         `<td>${t.pnl!=null?fmtCurrency(t.pnl):'–'}</td>`+
       '</tr>').join('') +
       '</tbody></table>';
-    // pagination
     pag.innerHTML = '';
     const mk = (label, target) => {
       const b = document.createElement('button');

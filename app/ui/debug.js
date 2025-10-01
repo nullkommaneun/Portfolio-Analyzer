@@ -60,7 +60,6 @@ export function setupDebug({ getState, perfMark, log }){
   });
 
   q('btnSelfCheck').addEventListener('click', ()=>{
-    const issues = [];
     const pass = (name, hint='') => ({ name, status: 'PASS', hint });
     const warn = (name, hint='') => ({ name, status: 'WARN', hint });
     const fail = (name, hint='') => ({ name, status: 'FAIL', hint });
@@ -97,7 +96,6 @@ export function setupDebug({ getState, perfMark, log }){
     }
 
     try{
-      // cashflow Plausibilität simpel
       const a = S().data?.account || {};
       const deposits = a.deposits||0;
       const withdrawals = a.withdrawals||0;
@@ -110,7 +108,6 @@ export function setupDebug({ getState, perfMark, log }){
       checks.push(fail('Cashflow Check', e.message));
     }
 
-    // Modulstatus
     const modules = [
       {name:'Chart.js', present: !!window.Chart },
       {name:'ES Modules', present: true },
@@ -121,12 +118,12 @@ export function setupDebug({ getState, perfMark, log }){
   });
 
   q('btnMeasure').addEventListener('click', ()=>{
-    const p = S().perf;
-    const pairs = Object.entries(p).map(([k,v])=>[k, v]).sort((a,b)=>a[1]-b[1]);
+    const p = (getState().perf)||{};
+    const keys = Object.keys(p).sort((a,b)=>p[a]-p[b]);
     const lines = [];
-    for (let i=1;i<pairs.length;i++){
-      const [k, t] = pairs[i];
-      const dt = (pairs[i][1] - pairs[i-1][1]).toFixed(1);
+    for (let i=1;i<keys.length;i++){
+      const k = keys[i];
+      const dt = (p[k] - p[keys[i-1]]).toFixed(1);
       lines.push(`${k}: +${dt} ms`);
     }
     document.getElementById('perf').textContent = lines.join('\n');

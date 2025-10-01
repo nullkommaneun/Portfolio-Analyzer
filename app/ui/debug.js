@@ -1,103 +1,156 @@
 // app/ui/debug.js
+import { assert } from '../util/assert.js';
 
-const MARKERS = {
-  closedStart: /Geschlossene Positionen|Closed Positions/i,
-  closedEnd: /(Dividendenübersicht|Dividends Overview|Transaktionen|Transactions|Kontoübersicht|Account Statement|Offene Positionen|Open Positions)/i,
-  txStart: /Transaktionen|Transactions/i,
-  txEnd: /(Dividendenübersicht|Dividends Overview|Closed Positions|Geschlossene Positionen|Kontoübersicht|Account Statement)/i
-};
+export function setupDebug({ getState, perfMark, log }){
+  const S = ()=>getState();
+  const q = id => document.getElementById(id);
 
-export function deriveLines(textPages) {
-  const text = (textPages || []).join('\n');
-  return text.split('\n').map(s => s.trim()).filter(Boolean);
-}
+  q('btnMarkSections').addEventListener('click', ()=>{
+    const pages = S().pages || [];
+    const text = pages.join('\n');
+    const idxClosed = text.indexOf('Geschlossene Positionen');
+    const idxTx = text.search(/(Transaktionen|Transactions)/i);
+    q('dbgSections').textContent = [
+      `Closed Positions Index: ${idxClosed}`,
+      `Transactions Index: ${idxTx}`,
+      ctx(text, idxClosed),
+      ctx(text, idxTx)
+    ].join('\n\n');
+  });
 
-export function findSections(lines) {
-  const idx = {
-    closedStart: lines.findIndex(l => MARKERS.closedStart.test(l)),
-    txStart:     lines.findIndex(l => MARKERS.txStart.test(l)),
-  };
-  idx.closedEnd = (() => {
-    if (idx.closedStart < 0) return -1;
-    for (let i = idx.closedStart + 1; i < lines.length; i++) {
-      if (MARKERS.closedEnd.test(lines[i])) return i;
+  q('btnShowContext').addEventListener('click', ()=>{
+    const lines = (S().pages||[]).join('\n').split(/\n+/);
+    const pats = [/\b\d{9,12}\b/, /\b[A-Z]{2}[A-Z0-9]{9}\d\b/, /\b(Long|Short)\b/i, /Gewinn \(USD\)|Betrag|Einheiten/];
+    const hits = [];
+    for (let i=0;i<lines.length;i++){
+      for (const re of pats){
+        if (re.test(lines[i])){
+          const from = Math.max(0, i-3);
+          const to = Math.min(lines.length, i+4);
+          hits.push(lines.slice(from,to).map((s,j)=>`${from+j}: ${s}`).join('\n'));
+          break;
+        }
+      }
     }
-    return lines.length;
-  })();
-  idx.txEnd = (() => {
-    if (idx.txStart < 0) return -1;
-    for (let i = idx.txStart + 1; i < lines.length; i++) {
-      if (MARKERS.txEnd.test(lines[i])) return i;
+    q('dbgContext').textContent = hits.slice(0,50).join('\n\n---\n\n');
+  });
+
+  q('btnShowRaw').addEventListener('click', ()=>{
+    q('dbgOut').textContent = (S().pages||[]).join('\n\n=== PAGE ===\n\n');
+  });
+
+  q('btnShowItems').addEventListener('click', ()=>{
+    const items = S().items||[];
+    q('dbgOut').textContent = JSON.stringify(items.slice(0,500), null, 2);
+  });
+
+  q('btnDownloadRaw').addEventListener('click', ()=>{
+    const blob = new Blob([ (S().pages||[]).join('\n') ], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'raw-text.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  });
+
+  q('btnCopyLog').addEventListener('click', async ()=>{
+    const ndjson = (S().logs||[]).map(o=>JSON.stringify(o)).join('\n');
+    await navigator.clipboard.writeText(ndjson);
+    alert('Log kopiert.');
+  });
+
+  q('btnSelfCheck').addEventListener('click', ()=>{
+    const issues = [];
+    const pass = (name, hint='') => ({ name, status: 'PASS', hint });
+    const warn = (name, hint='') => ({ name, status: 'WARN', hint });
+    const fail = (name, hint='') => ({ name, status: 'FAIL', hint });
+
+    const checks = [];
+    try{
+      assert(!!window.pdfjsLib, 'pdfjsLib nicht geladen');
+      checks.push(pass('pdf.js geladen'));
+    } catch(e){ checks.push(fail('pdf.js geladen', e.message)); }
+
+    try{
+      assert(!!window.pdfjsLib?.GlobalWorkerOptions?.workerSrc, 'Worker nicht gesetzt');
+      checks.push(pass('pdf.js Worker gesetzt'));
+    } catch(e){ checks.push(fail('pdf.js Worker gesetzt', e.message)); }
+
+    for (const id of ['file','analyzeBtn','tradesTable','feesChart','sectorChart']){
+      try{ assert(document.getElementById(id), `DOM-ID fehlt: ${id}`); checks.push(pass(`DOM: ${id}`)); }
+      catch(e){ checks.push(fail(`DOM: ${id}`, e.message)); }
     }
-    return lines.length;
-  })();
-  return idx;
-}
 
-export function contextAround(lines, needleRegex, radius = 3, limit = 10) {
-  const hits = [];
-  for (let i = 0; i < lines.length; i++) {
-    if (needleRegex.test(lines[i])) {
-      const from = Math.max(0, i - radius), to = Math.min(lines.length, i + radius + 1);
-      hits.push({ i, block: lines.slice(from, to), from, to });
-      if (hits.length >= limit) break;
+    try{
+      const d = S().data;
+      if (d?.trades?.length) {
+        const missing = d.trades.filter(t=>!t.position_id).length;
+        const q = 1 - (missing / d.trades.length);
+        checks.push(q > 0.99 ? pass('Parser: position_id Quote > 99%') : warn('Parser: position_id Quote', `${(q*100).toFixed(2)}%`));
+        const anyNaN = d.trades.some(t => Number.isNaN(t.amount) || Number.isNaN(t.units));
+        checks.push(!anyNaN ? pass('Parser: amount/units keine NaN') : warn('Parser: amount/units', 'NaN gefunden'));
+      } else {
+        checks.push(warn('Parser Basis', 'Noch keine Trades geladen'));
+      }
+    } catch(e){
+      checks.push(fail('Parser Checks', e.message));
     }
-  }
-  return hits;
-}
 
-export function dumpSectionsTo(preEl, lines, idx) {
-  if (!preEl) return;
-  const out = [];
-  out.push(`[Abschnitte]`);
-  out.push(`Closed Positions: start=${idx.closedStart}, end=${idx.closedEnd}`);
-  out.push(`Transactions:     start=${idx.txStart}, end=${idx.txEnd}`);
-
-  function snippet(start, end, title) {
-    if (start < 0) { out.push(`-- ${title}: nicht gefunden --`); return; }
-    const s = Math.max(0, start - 3), e = Math.min(lines.length, end + 3);
-    out.push(`--- ${title} (${start}..${end}) ---`);
-    for (let i = s; i < e; i++) out.push(`${String(i).padStart(5)}: ${lines[i]}`);
-  }
-
-  snippet(idx.closedStart, idx.closedEnd, 'ClosedBlock');
-  snippet(idx.txStart, idx.txEnd, 'TransactionsBlock');
-  preEl.textContent = out.join('\n');
-}
-
-export function dumpMatchesTo(preEl, lines) {
-  if (!preEl) return;
-  const pats = [
-    { name: 'Positions-ID', rx: /Positions-ID|Position ID/i },
-    { name: 'ISIN', rx: /\b[A-Z0-9]{12}\b/ },
-    { name: 'Lang/Short', rx: /\bLong\b|\bShort\b/i },
-    { name: 'Gewinn/Verlust', rx: /Gewinn|Verlust|P&L/i },
-    { name: 'Einheiten', rx: /Einheiten\s*[0-9.,]+/i },
-    { name: 'Eröffnungskurs', rx: /Eröffnungskurs\s*[0-9.,]+/i },
-    { name: 'Schlusskurs', rx: /Schlusskurs\s*[0-9.,]+/i }
-  ];
-  const out = [];
-  for (const p of pats) {
-    const hits = contextAround(lines, p.rx, 2, 5);
-    out.push(`== Treffer: ${p.name} (${hits.length}) ==`);
-    if (!hits.length) { out.push('  —'); continue; }
-    for (const h of hits) {
-      out.push(`-- @${h.i} --`);
-      out.push(...h.block.map((l, j) => `  ${String(h.from + j).padStart(5)}: ${l}`));
+    try{
+      // cashflow Plausibilität simpel
+      const a = S().data?.account || {};
+      const deposits = a.deposits||0;
+      const withdrawals = a.withdrawals||0;
+      if (deposits !== 0 || withdrawals !== 0){
+        checks.push(pass('Cashflows vorhanden', `Deposits: ${deposits}, Withdrawals: ${withdrawals}`));
+      } else {
+        checks.push(warn('Cashflows', 'Keine Summen erkennbar'));
+      }
+    } catch(e){
+      checks.push(fail('Cashflow Check', e.message));
     }
-  }
-  preEl.textContent = out.join('\n');
+
+    // Modulstatus
+    const modules = [
+      {name:'Chart.js', present: !!window.Chart },
+      {name:'ES Modules', present: true },
+    ];
+
+    renderSelfCheck(checks);
+    renderModuleStatus(modules);
+  });
+
+  q('btnMeasure').addEventListener('click', ()=>{
+    const p = S().perf;
+    const pairs = Object.entries(p).map(([k,v])=>[k, v]).sort((a,b)=>a[1]-b[1]);
+    const lines = [];
+    for (let i=1;i<pairs.length;i++){
+      const [k, t] = pairs[i];
+      const dt = (pairs[i][1] - pairs[i-1][1]).toFixed(1);
+      lines.push(`${k}: +${dt} ms`);
+    }
+    document.getElementById('perf').textContent = lines.join('\n');
+  });
 }
 
-export function showRaw(preEl, textPages) {
-  if (!preEl) return;
-  preEl.textContent = (textPages || []).map((t, i) => `--- PAGE ${i+1} ---\n${t}`).join('\n');
+function ctx(text, idx){
+  if (idx < 0) return '–';
+  const start = Math.max(0, idx - 200);
+  const end = Math.min(text.length, idx + 200);
+  return text.slice(start, end);
 }
 
-export function downloadRaw(textPages) {
-  const blob = new Blob([(textPages || []).join('\n')], { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'etoro-rawtext.txt';
-  a.click();
+function renderSelfCheck(checks){
+  const host = document.getElementById('selfCheck');
+  host.innerHTML = '<table><thead><tr><th>Check</th><th>Status</th><th>Hinweis</th></tr></thead><tbody>' +
+    checks.map(c=>`<tr><td>${esc(c.name)}</td><td>${badge(c.status)}</td><td>${esc(c.hint||'')}</td></tr>`).join('') +
+    '</tbody></table>';
 }
+function renderModuleStatus(mods){
+  const host = document.getElementById('moduleStatus');
+  host.innerHTML = '<table><thead><tr><th>Modul</th><th>Vorhanden</th></tr></thead><tbody>' +
+    mods.map(m=>`<tr><td>${esc(m.name)}</td><td>${m.present?'✔️':'❌'}</td></tr>`).join('') +
+    '</tbody></table>';
+}
+function esc(s){ return String(s??'').replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+function badge(s){ const c = s==='PASS'?'#2e7d32':(s==='WARN'?'#ed6c02':'#b00020'); return `<span style="padding:2px 6px;border-radius:6px;background:${c}20;color:${c};border:1px solid ${c}55">${s}</span>`; }

@@ -30,14 +30,13 @@ export function parseEtoroPdf(pages, items, { geomEnabled=false, logs=()=>{} } =
   for (const fm of FIELD_MAP){
     const idx = lines.findIndex(l => fm.keys.some(k => k.test(l)));
     if (idx !== -1){
-      // Zahl steht meist in derselben oder nächsten Zeile
       const bucket = lines.slice(idx, idx+5).join(' ');
       const m = bucket.match(/([\(\)\-\d\.,]+)\s*(USD|EUR)?/);
       if (m) account[fm.prop] = parseNumber(m[1]);
     }
   }
 
-  // Trades als 5-Zeilen-Blöcke mit optionaler vorangestellter ISIN
+  // Trades: 5-Zeilen-Blöcke, ISIN vorher optional
   const trades = [];
   let pendingISIN = null;
   for (let i=0;i<lines.length;i++){
@@ -62,17 +61,16 @@ export function parseEtoroPdf(pages, items, { geomEnabled=false, logs=()=>{} } =
       };
       trades.push(t);
       pendingISIN = null;
-      i += 3; // skip consumed lines
+      i += 3;
     }
   }
 
-  // Cashflows (einfach): suche "Transaktionen/Transactions" Abschnitt, dann Datum + Zahl mit Klammerlogik
+  // Cashflows: einfacher Scan im Transaktionen-Block
   const cashflows = [];
   const txStart = lines.findIndex(l => /(Transaktionen|Transactions)/i.test(l));
   if (txStart !== -1){
     for (let j = txStart; j < Math.min(lines.length, txStart+2000); j++){
       const s = lines[j];
-      // Datum dd-mm-yyyy oder dd/mm/yyyy, optional Uhrzeit
       if (/\d{2}[\-\/.]\d{2}[\-\/.]\d{4}/.test(s) && /[\(\)\-\d\.,]+/.test(s)){
         const amt = parseNumber(s);
         if (amt !== null){
@@ -84,7 +82,6 @@ export function parseEtoroPdf(pages, items, { geomEnabled=false, logs=()=>{} } =
     }
   }
 
-  // Geometrie-PnL (optional)
   if (geomEnabled && Array.isArray(items) && items.length){
     const pnlByPos = mapPnlByGeometry(items, { logs });
     for (const t of trades){
@@ -97,7 +94,6 @@ export function parseEtoroPdf(pages, items, { geomEnabled=false, logs=()=>{} } =
 }
 
 function extractSymbolFromName(name){
-  // eToro Format: "Elis SA (ELIS.PA)" -> ELIS.PA
   const m = name?.match(/\(([A-Z0-9\.\-]+)\)$/);
   return m ? m[1] : '';
 }
@@ -111,10 +107,8 @@ function toISO(s){
 }
 
 function mapPnlByGeometry(items, { logs }){
-  // Heuristik: Spaltenkopf "Gewinn (USD)" / "Profit (USD)" finden, dessen x = pnlX; dann Zahlen in dieser x-Spalte je Zeile der Position-ID zuordnen
   const heads = items.filter(it => /Gewinn \(USD\)|Profit \(USD\)|Gewinn \(EUR\)|Profit \(EUR\)/i.test(it.str));
   if (!heads.length) { logs('Keine Gewinn-Spaltenköpfe gefunden'); return new Map(); }
-  // Nimm häufigsten x-Bereich (gerundete 5px)
   const bucket = new Map();
   for (const h of heads){
     const key = Math.round(h.x/5)*5;
@@ -124,9 +118,7 @@ function mapPnlByGeometry(items, { logs }){
   const pnlX = pnlKey;
   logs(`Pnl-Spalte ~x=${pnlX}`);
 
-  // Sammle Position-IDs mit y
   const posItems = items.filter(it => /^\d{9,12}$/.test(it.str));
-  // Map y->posId (nimm nahe y)
   const posByY = new Map();
   for (const it of posItems){ posByY.set(Math.round(it.y), it.str); }
 
@@ -136,7 +128,6 @@ function mapPnlByGeometry(items, { logs }){
     const kx = Math.round(it.x/5)*5;
     if (Math.abs(kx - pnlX) <= 10){
       const y = Math.round(it.y);
-      // finde naheliegende pos y (gleiche Zeile oder 1-2 px darüber)
       let best = null, bestDy = 999;
       for (const [py,pos] of posByY){
         const dy = Math.abs(py - y);

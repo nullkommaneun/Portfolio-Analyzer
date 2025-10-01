@@ -1,10 +1,17 @@
-export function parseNumber(str) {
-  const s = String(str).trim();
-  // "1.234,56" oder "123,45"
-  if (/\d,\d{2}$/.test(s) && !s.includes('.')) {
-    return parseFloat(s.replace(/\./g,'').replace(',','.'));
-  }
-  // "1,234.56" oder "1234.56"
-  return parseFloat(s.replace(/,/g,''));
+// app/util/currency.js
+export function parseNumber(s){
+  if (!s) return null;
+  s = String(s).trim();
+  // Bracket negative logic: (123.45) -> -123.45
+  const neg = /^\(.*\)$/.test(s);
+  s = s.replace(/[()]/g,'');
+  // remove thousands separators and normalize decimal
+  // handle either 1,234.56 or 1.234,56 and plain 1234,56/1234.56
+  if (/\d+\.\d{3}(,\d+)?/.test(s)) s = s.replace(/\./g,'').replace(',', '.');
+  else if (/\d+,\d{2,}/.test(s)) s = s.replace(',', '.');
+  s = s.replace(/[^\-\d.]/g,'');
+  if (s === '' || s === '-' ) return null;
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  return neg ? -n : n;
 }
-export function isNegParen(str) { return /^\(.*\)$/.test(String(str).trim()); }

@@ -1,7 +1,1 @@
-# eToro PDF Analyzer (Client-only) – Fix Build
-
-Stand: 2025-10-01
-
-- pdf.js Worker wird explizit gesetzt (GlobalWorkerOptions.workerSrc).
-- Sichtbarer Analysieren-Button + Fehlerkonsole.
-- Läuft auf GitHub Pages (nicht file://).
+# Portfolio Analyzer (ESM pdf.js Fix)\n\nStand: 2025-10-01\n\nLädt pdf.js als ESM und setzt workerSrc.\n

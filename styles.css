@@ -1,4 +1,4 @@
-:root { --bg:#0b0d10; --card:#11151a; --fg:#e7edf3; --muted:#9fb0c3; --acc:#4ea1ff; }
+:root { --bg:#0b0d10; --card:#11151a; --fg:#e7edf3; --muted:#9fb0c3; --acc:#4ea1ff; --err:#ff6b6b; }
 * { box-sizing: border-box; }
 body { margin:0; font:14px/1.5 system-ui,Segoe UI,Roboto; color:var(--fg); background:var(--bg); }
 header, footer { padding:16px 20px; }
@@ -13,3 +13,4 @@ h1 { margin:0 0 6px; font-size:20px; }
 button { background:var(--acc); color:#001225; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; }
 button:hover { filter:brightness(1.1); }
 #status { margin-top:8px; color:var(--muted); }
+.console { margin-top:10px; text-align:left; background:#0e0f12; border:1px solid #2a3542; border-radius:8px; padding:10px; max-height:180px; overflow:auto; color:var(--err); }

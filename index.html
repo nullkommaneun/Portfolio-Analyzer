@@ -18,16 +18,12 @@
 
   <section id="uploader" class="card dropzone">
     <input id="file" type="file" accept="application/pdf" />
-    <p>PDF hier ablegen oder Datei wählen.</p>
+    <button id="analyzeBtn">Analysieren</button>
+    <p>PDF hier ablegen oder Datei wählen und auf <b>Analysieren</b> klicken.</p>
     <div id="status"></div>
+    <pre id="errorConsole" class="console" aria-live="polite"></pre>
   </section>
 
-<section class="card actions">
-  <input id="file" type="file" accept="application/pdf" />
-  <button id="analyzeBtn">Analysieren</button>
-  <div id="status"></div>
-</section>
-  
   <section id="kpis" class="grid"></section>
 
   <section class="grid">

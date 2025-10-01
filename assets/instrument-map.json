@@ -1,0 +1,12 @@
+{
+  "AAPL": {
+    "isin": "US0378331005",
+    "sector": "Information Technology",
+    "country": "USA"
+  },
+  "TSLA": {
+    "isin": "US88160R1014",
+    "sector": "Consumer Discretionary",
+    "country": "USA"
+  }
+}

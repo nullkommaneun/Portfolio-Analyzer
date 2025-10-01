@@ -32,8 +32,7 @@ function computeXirr(cashflows){
 
   let r = 0.1;
   for (let i=0;i<100;i++){
-    const fr = f(r);
-    const dfr = df(r);
+    const fr = f(r); const dfr = df(r);
     if (!Number.isFinite(fr) || !Number.isFinite(dfr)) return null;
     const nr = r - fr/dfr;
     if (Math.abs(nr - r) < 1e-7) return r;

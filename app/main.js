@@ -41,7 +41,6 @@ async function run(file) {
   }
 }
 
-// drag & drop
 const drop = document.getElementById('uploader');
 drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
 drop.addEventListener('dragleave', e => { drop.classList.remove('drag'); });

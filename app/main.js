@@ -30,7 +30,6 @@ const log = (level, msg, extra) => {
   state.logs.push(entry);
   const c = el('logTable');
   if (c) {
-    // simple render append
     if (!c.dataset.inited) {
       c.dataset.inited = '1';
       c.innerHTML = `<table><thead><tr><th>Zeit</th><th>Level</th><th>Nachricht</th></tr></thead><tbody></tbody></table>`;
@@ -117,6 +116,12 @@ function bindUI(){
     await run(f);
   });
 
+  // UX: sofortige Analyse beim Auswählen
+  file.addEventListener('change', async ()=>{
+    const f = file.files?.[0];
+    if (f) await run(f);
+  });
+
   uploader.addEventListener('dragover', (e)=>{ e.preventDefault(); uploader.classList.add('drag'); });
   uploader.addEventListener('dragleave', ()=> uploader.classList.remove('drag'));
   uploader.addEventListener('drop', async (e)=>{
@@ -138,7 +143,6 @@ function bindUI(){
   el('assumeAmountAsPnl').addEventListener('change', async (e)=>{
     state.options.assumeAmountAsPnl = e.target.checked;
     if (state.raw) {
-      // Recompute without reloading PDF
       setStatus('Rechne neu …');
       const data = normalizeAll(state.raw);
       if (state.options.assumeAmountAsPnl) {
@@ -166,6 +170,12 @@ function bindUI(){
     perfMark,
     log
   });
+
+  // Auto-Trigger: Self-Check einmalig anzeigen, damit Diagnose sichtbar ist
+  setTimeout(()=>{
+    const btn = document.getElementById('btnSelfCheck');
+    if (btn) btn.click();
+  }, 80);
 }
 
 document.addEventListener('DOMContentLoaded', bindUI);

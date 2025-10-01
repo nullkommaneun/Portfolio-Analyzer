@@ -11,6 +11,7 @@
 <header class="container">
   <h1>eToro Portfolio Analyzer</h1>
   <p class="sub">Client-seitig · Kein Upload · PDF lokal analysieren</p>
+  <div id="bootBanner" style="padding:.25rem .5rem;border-radius:8px;border:1px solid #999;display:inline-block">Boot: <span id="bootState">init…</span></div>
 </header>
 
 <main class="container">
@@ -39,6 +40,7 @@
     <div class="card">
       <h2>Exposure nach Typ</h2>
       <canvas id="sectorChart" aria-label="Exposure-Donut"></canvas>
+      <div id="chartHint" class="status" aria-live="polite"></div>
     </div>
   </section>
 
@@ -112,18 +114,37 @@
 </footer>
 
 <script type="module">
+  const bootState = document.getElementById('bootState');
+  function setBoot(s){ bootState.textContent = s; }
+
+  async function tryImport(urls){
+    let lastErr = null;
+    for (const u of urls){
+      try { return await import(u); }
+      catch(e){ lastErr = e; console.warn('Import fehlschlag:', u, e); }
+    }
+    throw lastErr || new Error('Import fehlgeschlagen');
+  }
+
   async function boot() {
+    setBoot('lade pdf.js …');
     try {
-      const pdfjsLib = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.mjs");
+      const pdfjsLib = await tryImport([
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.mjs",
+        "https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.mjs",
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs"
+      ]);
+      window.pdfjsLib = pdfjsLib;
       pdfjsLib.GlobalWorkerOptions.workerSrc =
         "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.mjs";
-      window.pdfjsLib = pdfjsLib;
-      console.log("pdf.js geladen");
+      setBoot('pdf.js OK, lade App …');
     } catch (e) {
       console.warn("pdf.js konnte nicht geladen werden.", e);
       window.pdfjsLib = null;
+      setBoot('pdf.js fehlt, App lädt trotzdem …');
     } finally {
       await import("./app/main.js");
+      setBoot('App bereit');
     }
   }
   boot();

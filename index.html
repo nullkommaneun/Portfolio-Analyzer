@@ -2,50 +2,123 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Portfolio Analyzer (Client-only)</title>
-  <link rel="stylesheet" href="styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script type="module">
-    (async () => {
-      try {
-        const pdfjsLib = await import('https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.mjs');
-        window.pdfjsLib = pdfjsLib;
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-          'https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs';
-        await import('./app/main.js');
-      } catch (e) {
-        console.error('pdf.js oder main.js konnte nicht geladen werden:', e);
-        const ec = document.getElementById('errorConsole');
-        if (ec) ec.textContent = 'Ladefehler: ' + (e?.message || e);
-      }
-    })();
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>eToro Portfolio Analyzer</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <meta name="color-scheme" content="light dark">
 </head>
 <body>
-  <header><h1>eToro PDF Analyzer</h1></header>
-  <section id="uploader" class="card dropzone">
-    <input id="file" type="file" accept="application/pdf" />
-    <button id="analyzeBtn" type="button">Analysieren</button>
-    <div id="status"></div>
-    <pre id="errorConsole" class="console"></pre>
+<header class="container">
+  <h1>eToro Portfolio Analyzer</h1>
+  <p class="sub">Client-seitig · Kein Upload · PDF lokal analysieren</p>
+</header>
+
+<main class="container">
+  <section class="card" aria-label="PDF-Upload">
+    <div class="uploader" id="uploader" tabindex="0" aria-label="PDF hierher ziehen oder Datei auswählen">
+      <input type="file" id="file" accept="application/pdf" aria-label="Kontoauszug wählen" />
+      <button id="analyzeBtn" class="btn">Analysieren</button>
+      <p id="status" class="status" aria-live="polite">Bereit.</p>
+    </div>
   </section>
-  <section id="kpis" class="grid"></section>
-  <section class="grid">
-    <div class="card"><h2>Gebühren</h2><canvas id="feesChart"></canvas></div>
-    <div class="card"><h2>Exposure</h2><canvas id="sectorChart"></canvas></div>
+
+  <section class="grid-3" aria-label="KPI-Karten">
+    <div class="card kpi" id="kpiWinrate" aria-live="polite"><div class="kpi-label">Winrate</div><div class="kpi-value">–</div></div>
+    <div class="card kpi" id="kpiPF" aria-live="polite"><div class="kpi-label">Profit-Faktor</div><div class="kpi-value">–</div></div>
+    <div class="card kpi" id="kpiMDD" aria-live="polite"><div class="kpi-label">Max Drawdown</div><div class="kpi-value">–</div></div>
+    <div class="card kpi" id="kpiDiv" aria-live="polite"><div class="kpi-label">Dividenden</div><div class="kpi-value">–</div></div>
+    <div class="card kpi" id="kpiRealizedEnd" aria-live="polite"><div class="kpi-label">Realisiertes EK (Ende)</div><div class="kpi-value">–</div></div>
+    <div class="card kpi" id="kpiXirr" aria-live="polite"><div class="kpi-label">XIRR</div><div class="kpi-value">–</div></div>
   </section>
-  <section class="card"><h2>Geschlossene Positionen</h2><div id="tradesTable"></div></section>
-  <section class="card actions"><button id="exportJson">Export JSON</button><button id="exportCsv">Export CSV</button></section>
-  <section class="card" id="debugPanel">
-    <h2>Diagnose</h2>
-    <label><input type="checkbox" id="dbgEnabled"> Diagnose aktiv</label>
-    <label><input type="checkbox" id="dbgTreatAmountAsPnl"> „Betrag“ als PnL interpretieren</label>
-    <button id="dbgShowSections">Abschnitte markieren</button>
-    <button id="dbgShowMatches">Kontext um Treffer</button>
-    <button id="dbgShowRaw">Rohtext anzeigen</button>
-    <button id="dbgDlRaw">Rohtext herunterladen</button>
-    <pre id="dbgOut" class="console"></pre>
+
+  <section class="grid-2" aria-label="Charts">
+    <div class="card">
+      <h2>Gebühren</h2>
+      <canvas id="feesChart" aria-label="Gebühren-Balkendiagramm"></canvas>
+    </div>
+    <div class="card">
+      <h2>Exposure nach Typ</h2>
+      <canvas id="sectorChart" aria-label="Exposure-Donut"></canvas>
+    </div>
   </section>
+
+  <section class="card" aria-label="Trades">
+    <div class="toolbar">
+      <div class="left">
+        <button id="exportJson" class="btn">Export JSON</button>
+        <button id="exportCsv" class="btn">Export CSV</button>
+      </div>
+      <div class="right">
+        <label><input type="checkbox" id="assumeAmountAsPnl" /> Betrag als PnL interpretieren</label>
+      </div>
+    </div>
+    <div id="tradesTable" class="table" role="table" aria-label="Trades Tabelle"></div>
+    <div id="pagination" class="pagination" role="navigation" aria-label="Seiten-Navigation"></div>
+  </section>
+
+  <section class="card" aria-label="Diagnostik">
+    <h2>Diagnostik</h2>
+    <div class="dbg-controls">
+      <label><input type="checkbox" id="dbgEnabled" /> Diagnose aktiv</label>
+      <label><input type="checkbox" id="geomEnabled" /> Spalten-Mapping (Geometrie) aktivieren</label>
+      <div class="btn-row">
+        <button id="btnMarkSections" class="btn">Abschnitte markieren</button>
+        <button id="btnShowContext" class="btn">Kontext um Treffer</button>
+        <button id="btnShowRaw" class="btn">Rohtext anzeigen</button>
+        <button id="btnShowItems" class="btn">Roh-Items (x/y)</button>
+        <button id="btnDownloadRaw" class="btn">Rohdaten herunterladen</button>
+        <button id="btnSelfCheck" class="btn">Self-Check</button>
+        <button id="btnMeasure" class="btn">Leistung messen</button>
+        <button id="btnCopyLog" class="btn">Log kopieren</button>
+      </div>
+    </div>
+    <div class="dbg-grid">
+      <div>
+        <h3>Abschnittsanalyse</h3>
+        <pre id="dbgSections" class="pre"></pre>
+      </div>
+      <div>
+        <h3>Trefferkontext</h3>
+        <pre id="dbgContext" class="pre"></pre>
+      </div>
+    </div>
+    <div class="dbg-grid">
+      <div>
+        <h3>Self-Check</h3>
+        <div id="selfCheck" class="selfcheck"></div>
+      </div>
+      <div>
+        <h3>Modul-Status</h3>
+        <div id="moduleStatus" class="modstatus"></div>
+      </div>
+    </div>
+    <div class="dbg-grid">
+      <div>
+        <h3>Leistungs-Telemetry</h3>
+        <div id="perf" class="perf"></div>
+      </div>
+      <div>
+        <h3>Logbuch</h3>
+        <div id="logTable" class="logtable"></div>
+      </div>
+    </div>
+    <pre id="dbgOut" class="pre" aria-label="Debug-Ausgabe"></pre>
+    <div id="errorConsole" class="errors" role="alert" aria-live="assertive"></div>
+  </section>
+</main>
+
+<footer class="container">
+  <small>Alle Berechnungen laufen lokal im Browser. Keine Telemetrie.</small>
+</footer>
+
+<script type="module">
+  // 1) pdfjs-dist ESM laden und global bereitstellen
+  import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.mjs";
+  // Worker setzen (mjs Worker)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.mjs";
+  window.pdfjsLib = pdfjsLib;
+  // 2) App starten
+  import "./app/main.js";
+</script>
 </body>
 </html>

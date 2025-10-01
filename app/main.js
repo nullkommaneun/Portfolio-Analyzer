@@ -7,21 +7,41 @@ import { renderKpis, renderTrades, renderCharts } from './ui/render.js';
 import { exportJson, exportCsv } from './ui/export.js';
 
 const fileInput = document.getElementById('file');
-const statusEl = document.getElementById('status');
-
-// drag & drop
-const fileInput = document.getElementById('file');
 const analyzeBtn = document.getElementById('analyzeBtn');
 const statusEl = document.getElementById('status');
+const errorConsole = document.getElementById('errorConsole');
 
-analyzeBtn.addEventListener('click', () => {
-  const file = fileInput.files?.[0];
-  if (!file) {
-    statusEl.textContent = 'Bitte zuerst eine PDF auswählen.';
-    return;
+function logError(err) {
+  const msg = (err && err.stack) ? err.stack : (err?.message || String(err));
+  errorConsole.textContent += (errorConsole.textContent ? '\n' : '') + msg;
+  console.error(err);
+}
+
+async function run(file) {
+  try {
+    errorConsole.textContent = '';
+    statusEl.textContent = 'Lese PDF …';
+    const textPages = await extractTextFromPdf(file);
+    statusEl.textContent = 'Parse eToro-Struktur …';
+    const raw = parseEtoroPdf(textPages);
+    statusEl.textContent = 'Normalisiere …';
+    const data = normalizeAll(raw);
+    statusEl.textContent = 'Berechne Kennzahlen …';
+    const metrics = computeMetrics(data);
+    const aggr = await aggregate(data);
+    renderKpis(metrics);
+    renderTrades(data.trades);
+    renderCharts({ metrics, aggr, data });
+    document.getElementById('exportJson').onclick = () => exportJson({ data, metrics, aggr });
+    document.getElementById('exportCsv').onclick  = () => exportCsv(data);
+    statusEl.textContent = 'Fertig.';
+  } catch (err) {
+    statusEl.textContent = 'Fehler – Details unten.';
+    logError(err);
   }
-  run(file);
-});
+}
+
+// drag & drop
 const drop = document.getElementById('uploader');
 drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
 drop.addEventListener('dragleave', e => { drop.classList.remove('drag'); });
@@ -37,30 +57,11 @@ fileInput.addEventListener('change', async (e) => {
   if (file) await run(file);
 });
 
-async function run(file) {
-  try {
-    statusEl.textContent = 'Lese PDF …';
-    const textPages = await extractTextFromPdf(file);
-    statusEl.textContent = 'Parse eToro-Struktur …';
-    const raw = parseEtoroPdf(textPages);
-
-    statusEl.textContent = 'Normalisiere …';
-    const data = normalizeAll(raw); // { account, trades[], dividends[], fees[], cashflows[] }
-
-    statusEl.textContent = 'Berechne Kennzahlen …';
-    const metrics = computeMetrics(data);
-    const aggr = await aggregate(data);
-
-    renderKpis(metrics);
-    renderTrades(data.trades);
-    renderCharts({ metrics, aggr, data });
-
-    document.getElementById('exportJson').onclick = () => exportJson({ data, metrics, aggr });
-    document.getElementById('exportCsv').onclick  = () => exportCsv(data);
-
-    statusEl.textContent = 'Fertig.';
-  } catch (err) {
-    console.error(err);
-    statusEl.textContent = 'Fehler: ' + (err?.message || err);
+analyzeBtn.addEventListener('click', async () => {
+  const file = fileInput.files?.[0];
+  if (!file) {
+    statusEl.textContent = 'Bitte zuerst eine PDF auswählen.';
+    return;
   }
-}
+  await run(file);
+});
